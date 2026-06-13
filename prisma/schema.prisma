@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Job {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String         @db.VarChar(255)
+  payload        Json           @default("{}")
+  state          JobState       @default(PENDING)
+  priority       Int            @default(10)
+  runAt          DateTime       @default(now()) @map("run_at")
+  maxRetries     Int            @default(3) @map("max_retries")
+  retriesCount   Int            @default(0) @map("retries_count")
+  backoffType    BackoffType    @default(FIXED) @map("backoff_type")
+  backoffDelay   Int            @default(1000) @map("backoff_delay")
+  cronExpression String?        @map("cron_expression")
+  lockedAt       DateTime?      @map("locked_at")
+  lockedBy       String?        @map("locked_by")
+  timeout        Int            @default(60000)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at")
+  executions     JobExecution[]
+
+  @@index([state, runAt, priority(sort: Desc)], map: "idx_jobs_state_run_at_priority")
+  @@index([cronExpression], map: "idex_jobs_cron_expression")
+  @@map("jobs")
+}
+
+model JobExecution {
+  id           String    @id @default(uuid()) @db.Uuid
+  jobId        String    @map("job_id") @db.Uuid
+  workerId     String    @map("worker_id") @db.VarChar(255)
+  attempt      Int
+  state        JobState
+  statusCode   Int?      @map("status_code")
+  responseBody String?   @map("response_body")
+  startedAt    DateTime  @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  error        String?
+  stackTrace   String?   @map("stack_trace")
+  job          Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId], map: "idx_job_executions_job_id")
+  @@map("job_executions")
+}
+
+enum JobState {
+  RUNNING
+  QUEUED
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum BackoffType {
+  FIXED
+  EXPONENTIAL
+}
