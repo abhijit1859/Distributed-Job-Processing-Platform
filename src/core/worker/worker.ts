@@ -1,6 +1,6 @@
 import { DatabaseQueue } from '../queue/database-queue';
 import { Job } from '@prisma/client';
-import { resolveAndValidateHost } from '../../shared/utils/ssrf';
+import { resolveAndValidateHost } from '../../utils/ssrf';
 
 export interface WorkerOptions {
   concurrency?: number;

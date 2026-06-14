@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client';
 import { Job, JobState, BackoffType } from '@prisma/client';
-import { calculateNextRun } from '../../shared/utils/backoff';
+import { calculateNextRun } from '../../utils/backoff';
+import { getNextCronRun } from '../../utils/cron';
 
 export interface EnqueueOptions {
   priority?: number;
@@ -19,7 +20,7 @@ export interface Payload {
 }
 
 export class DatabaseQueue {
-   
+
   async enqueue(
     name: string,
     payload: Payload,
@@ -28,7 +29,7 @@ export class DatabaseQueue {
     return prisma.job.create({
       data: {
         name,
-        payload: payload as any,  
+        payload: payload as any,
         priority: options.priority ?? 10,
         runAt: options.runAt ?? new Date(),
         maxRetries: options.maxRetries ?? 3,
@@ -40,7 +41,7 @@ export class DatabaseQueue {
     });
   }
 
- 
+
   async fetchNextJob(workerId: string): Promise<Job | null> {
     const result = await prisma.$queryRawUnsafe<Job[]>(
       `
@@ -64,7 +65,7 @@ export class DatabaseQueue {
     return result.length > 0 ? result[0] : null;
   }
 
-  
+
   async completeJob(
     jobId: string,
     workerId: string,
@@ -81,15 +82,32 @@ export class DatabaseQueue {
         throw new Error(`Job ${jobId} is not in RUNNING state (current: ${job.state})`);
       }
 
-      await tx.job.update({
-        where: { id: jobId },
-        data: {
-          state: JobState.COMPLETED,
-          lockedAt: null,
-          lockedBy: null,
-        },
-      });
+      if (job.cronExpression) {
+        const nextRun=getNextCronRun(job.cronExpression)
 
+        await tx.job.update({
+          where:{id:jobId},
+          data:{
+            state:JobState.PENDING,
+            runAt:nextRun,
+            retriesCount:0,
+            lockedAt:null,
+            lockedBy:null
+          }
+        })
+
+      } else {
+        await tx.job.update({
+          where: { id: jobId },
+          data: {
+            state: JobState.COMPLETED,
+            lockedAt: null,
+            lockedBy: null,
+          },
+        });
+
+
+      }
       await tx.jobExecution.create({
         data: {
           jobId,
@@ -102,10 +120,12 @@ export class DatabaseQueue {
           finishedAt: new Date(),
         },
       });
+
+
     });
   }
 
-   
+
   async failJob(
     jobId: string,
     workerId: string,
