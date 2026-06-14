@@ -1,6 +1,7 @@
 import { BackoffType, JobState } from "@prisma/client";
 import { prisma } from "../../db/client";
 import type { Request, Response } from "express";
+import type { AuthenticatedRequest } from "../middlewares/auth-middleware";
 import * as z from "zod"
 import { DatabaseQueue } from "../../core/queue/database-queue";
 
@@ -24,6 +25,16 @@ const queue = new DatabaseQueue()
 export class jobControllers {
     static async enqueue(req: Request, res: Response): Promise<void> {
         try {
+            const authReq = req as AuthenticatedRequest;
+            const userId = authReq.user?.id;
+            if (!userId) {
+                res.status(401).json({
+                    success: false,
+                    message: "Unauthorized: User not authenticated"
+                });
+                return;
+            }
+
             const parsed = enqueueSchema.safeParse(req.body)
 
             if (!parsed.success) {
@@ -35,7 +46,7 @@ export class jobControllers {
             }
 
             const {name,payload,...options}=parsed.data
-            const job = await queue.enqueue(name,payload,options)
+            const job = await queue.enqueue(userId,name,payload,options)
 
             res.status(201).json({
                 success: true,

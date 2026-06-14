@@ -22,12 +22,14 @@ export interface Payload {
 export class DatabaseQueue {
 
   async enqueue(
+    userId: string,
     name: string,
     payload: Payload,
     options: EnqueueOptions = {},
   ): Promise<Job> {
     return prisma.job.create({
       data: {
+        userId,
         name,
         payload: payload as any,
         priority: options.priority ?? 10,

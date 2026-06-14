@@ -9,11 +9,21 @@ async function run() {
   console.log('--- Cleaning old jobs ---');
   await prisma.jobExecution.deleteMany();
   await prisma.job.deleteMany();
+  await prisma.user.deleteMany();
+
+  const user = await prisma.user.create({
+    data: {
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    },
+  });
 
   console.log('\n--- Enqueuing HTTP Jobs ---');
   
   // Immediate high priority job
   const job1 = await queue.enqueue(
+    user.id,
     'http.request',
     { url: 'https://httpbin.org/post', method: 'POST', body: { orderId: 101 } },
     { priority: 20 },
@@ -22,6 +32,7 @@ async function run() {
 
   // Immediate low priority job
   const job2 = await queue.enqueue(
+    user.id,
     'http.request',
     { url: 'https://httpbin.org/get', method: 'GET' },
     { priority: 5 },

@@ -34,30 +34,39 @@ async function run() {
     console.log('\n--- Cleaning Database ---');
     await prisma.jobExecution.deleteMany();
     await prisma.job.deleteMany();
+    await prisma.user.deleteMany();
+
+    const user = await prisma.user.create({
+      data: {
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'password123',
+      },
+    });
 
     console.log('\n--- Enqueuing Test Jobs ---');
 
     // 1. Success Webhook
-    const j1 = await queue.enqueue('http.request', {
+    const j1 = await queue.enqueue(user.id, 'http.request', {
       url: 'http://localhost:3030/webhook/success',
       method: 'POST',
       body: { event: 'user.created', id: 'usr_123' },
     });
 
     // 2. Failing Webhook
-    const j2 = await queue.enqueue('http.request', {
+    const j2 = await queue.enqueue(user.id, 'http.request', {
       url: 'http://localhost:3030/webhook/fail',
       method: 'POST',
     });
 
     // 3. Timeout Webhook (set timeout to 2000ms)
-    const j3 = await queue.enqueue('http.request', {
+    const j3 = await queue.enqueue(user.id, 'http.request', {
       url: 'http://localhost:3030/webhook/timeout',
       method: 'POST',
     }, { timeout: 2000 });
 
     // 4. SSRF Webhook (bypass ALLOW_PRIVATE_IPS for this specific check to see if it blocks)
-    const j4 = await queue.enqueue('http.request', {
+    const j4 = await queue.enqueue(user.id, 'http.request', {
       url: 'http://localhost:3030/webhook/success',
       method: 'POST',
     });

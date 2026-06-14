@@ -6,8 +6,22 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id        String   @id @unique @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  role      Roles    @default(USER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  jobs      Job[]
+
+  @@map("users")
+}
+
 model Job {
   id             String         @id @default(uuid()) @db.Uuid
+  userId         String         @db.Uuid
   name           String         @db.VarChar(255)
   payload        Json           @default("{}")
   state          JobState       @default(PENDING)
@@ -22,6 +36,7 @@ model Job {
   lockedBy       String?        @map("locked_by")
   timeout        Int            @default(60000)
   updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at")
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions     JobExecution[]
 
   @@index([state, runAt, priority(sort: Desc)], map: "idx_jobs_state_run_at_priority")
@@ -59,4 +74,9 @@ enum JobState {
 enum BackoffType {
   FIXED
   EXPONENTIAL
+}
+
+enum Roles {
+  ADMIN
+  USER
 }
