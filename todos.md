@@ -31,19 +31,24 @@ This document tracks our implementation progress.
 
 ---
 
-## 📅 Milestone 3: Worker Engine & Concurrency Control (COMPLETED)
+## 📅 Milestone 3: Worker Engine & Concurrency Control (IN PROGRESS)
 - [x] Create `src/shared/utils/ssrf.ts` to implement DNS resolution and private IP validation (SSRF/DNS Rebinding protection).
 - [x] Create `src/core/worker/worker.ts` and implement the `Worker` class with job execution and concurrency limits.
 - [x] Implement safe HTTP client execution in `Worker` using native `fetch` with AbortController timeouts and Host/X-Job-Id headers.
 - [x] Create `src/scratch/test-worker.ts` to run a mock local HTTP server and verify worker polling, concurrency limits, execution success, retries, and SSRF blocking.
 - [x] Create `src/index.ts` to serve as the unified entrypoint that boots the process based on `PROCESS_ROLE` environment variable.
+- [ ] Implement recurring (cron) job scheduling logic: when a cron job completes/fails, schedule its next run based on the cron expression.
 
 ---
 
 ## 📅 Milestone 4: Scheduler & Recurring (Cron) Jobs (IN PROGRESS)
-- [ ] Create `src/shared/utils/cron.ts` to parse standard cron expressions and calculate next execution schedules.
-- [ ] Create `src/core/scheduler/scheduler.ts` and implement the `Scheduler` daemon polling loop.
-- [ ] Write transactional scheduler query to grab scheduled ready jobs (runAt <= NOW) and move them to `QUEUED`.
-- [ ] Implement recurring (cron) job scheduling logic: when a cron job completes/fails, schedule its next run based on the cron expression.
+- [x] Create `src/utils/cron.ts` to parse standard cron expressions and calculate next execution schedules.
+- [x] Refactor and fix existing scheduler implementation in `src/core/scheduler/scheduler.ts`:
+  - [x] Fix the `start()` early return check logic (currently returns when *not* running instead of when running).
+  - [x] Implement the recurring execution loop inside `tick()` using `setTimeout`.
+  - [x] Add `pollIntervalMs` parameter configuration via the constructor or configuration options.
+  - [x] Fix the spelling typo of `isRunninng` to `isRunning`.
+  - [x] Log the number of promoted pending jobs using the returned count from Prisma's `updateMany`.
+- [x] Write transactional scheduler query to grab scheduled ready jobs (runAt <= NOW) and move them to `QUEUED`.
 - [ ] Create verification script `src/scratch/test-scheduler.ts` and run it to verify delayed and cron jobs execution.
 - [ ] Integrate Scheduler startup into unified process entrypoint `src/index.ts` under role `'scheduler'`.

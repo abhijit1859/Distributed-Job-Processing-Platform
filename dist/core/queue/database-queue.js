@@ -12,7 +12,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DatabaseQueue = void 0;
 const client_1 = require("../../db/client");
 const client_2 = require("@prisma/client");
-const backoff_1 = require("../../shared/utils/backoff");
+const backoff_1 = require("../../utils/backoff");
+const cron_1 = require("../../utils/cron");
 class DatabaseQueue {
     enqueue(name_1, payload_1) {
         return __awaiter(this, arguments, void 0, function* (name, payload, options = {}) {
@@ -63,14 +64,29 @@ class DatabaseQueue {
                 if (job.state !== client_2.JobState.RUNNING) {
                     throw new Error(`Job ${jobId} is not in RUNNING state (current: ${job.state})`);
                 }
-                yield tx.job.update({
-                    where: { id: jobId },
-                    data: {
-                        state: client_2.JobState.COMPLETED,
-                        lockedAt: null,
-                        lockedBy: null,
-                    },
-                });
+                if (job.cronExpression) {
+                    const nextRun = (0, cron_1.getNextCronRun)(job.cronExpression);
+                    yield tx.job.update({
+                        where: { id: jobId },
+                        data: {
+                            state: client_2.JobState.PENDING,
+                            runAt: nextRun,
+                            retriesCount: 0,
+                            lockedAt: null,
+                            lockedBy: null
+                        }
+                    });
+                }
+                else {
+                    yield tx.job.update({
+                        where: { id: jobId },
+                        data: {
+                            state: client_2.JobState.COMPLETED,
+                            lockedAt: null,
+                            lockedBy: null,
+                        },
+                    });
+                }
                 yield tx.jobExecution.create({
                     data: {
                         jobId,

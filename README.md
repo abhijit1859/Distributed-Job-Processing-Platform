@@ -67,7 +67,7 @@ Spin up PostgreSQL via Docker Compose:
 docker-compose up -d
 ```
 
-### 3. Run Schema Migrations & Generator
+### 3. Run Schema Migrations & Generate Client
 Apply migrations and compile Prisma Client:
 ```bash
 npm run db:migrate
@@ -75,29 +75,42 @@ npx prisma generate
 ```
 
 ### 4. Running the Application
-Start the unified entrypoint in your desired role:
+Start the entrypoint process in your desired role (uses `ts-node-dev` in development):
 ```bash
-# Start as a Worker
+# Start as a Worker (processes jobs from the queue)
 PROCESS_ROLE=worker WORKER_CONCURRENCY=5 npm run dev
 
-# Start as an API Server
+# Start as an API Server (exposes REST endpoints)
 PROCESS_ROLE=api npm run dev
+```
+
+### 5. Running Verification Scripts
+We have interactive scripts to verify parts of the queue and worker subsystems:
+```bash
+# Verify row-level locking & concurrency (with mock workers)
+npx ts-node src/scratch/test-queue.ts
+
+# Verify HTTP requests, fail/retry states, SSRF protection & timeout logic
+npx ts-node src/scratch/test-worker.ts
 ```
 
 ---
 
 ## 📡 REST API Specifications
 
-### Current & Proposed Endpoints
+The Express API server runs on port `3000` by default.
 
-#### 1. Enqueue Job
-* **Endpoint**: `POST /api/v1/jobs`
+### Endpoints
+
+#### 1. Enqueue a Job
+* **Endpoint**: `POST /jobs`
+* **Headers**: `Content-Type: application/json`
 * **Request Format**:
 ```json
 {
   "name": "http.request",
   "payload": {
-    "url": "https://api.example.com/webhooks",
+    "url": "https://httpbin.org/post",
     "method": "POST",
     "headers": {
       "Content-Type": "application/json"
@@ -105,9 +118,8 @@ PROCESS_ROLE=api npm run dev
     "body": { "event": "order.completed", "id": 102 }
   },
   "priority": 20,
-  "max_retries": 3,
-  "backoff_type": "EXPONENTIAL",
-  "backoff_delay": 2000,
+  "maxRetries": 3,
+  "backoffType": "EXPONENTIAL",
   "timeout": 10000
 }
 ```
@@ -118,68 +130,101 @@ PROCESS_ROLE=api npm run dev
   "data": {
     "id": "e81d77a0-0099-4d69-8f85-0c7f3e8f8a84",
     "name": "http.request",
+    "payload": {
+      "url": "https://httpbin.org/post",
+      "method": "POST",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": { "event": "order.completed", "id": 102 }
+    },
     "state": "QUEUED",
     "priority": 20,
-    "run_at": "2026-06-13T12:00:00.000Z"
+    "runAt": "2026-06-14T12:00:00.000Z",
+    "maxRetries": 3,
+    "retriesCount": 0,
+    "backoffType": "EXPONENTIAL",
+    "backoffDelay": 1000,
+    "cronExpression": null,
+    "lockedAt": null,
+    "lockedBy": null,
+    "timeout": 10000,
+    "updatedAt": "2026-06-14T12:00:00.000Z"
   }
 }
 ```
 
-#### 2. Get Job Details & Attempts
-* **Endpoint**: `GET /api/v1/jobs/:id`
+#### 2. List All Jobs
+* **Endpoint**: `GET /jobs`
 * **Response (200 OK)**:
 ```json
 {
-  "success": true,
-  "data": {
+  "JOBS": [
+    {
+      "id": "e81d77a0-0099-4d69-8f85-0c7f3e8f8a84",
+      "name": "http.request",
+      "state": "COMPLETED",
+      "priority": 20,
+      ...
+    }
+  ]
+}
+```
+
+#### 3. Get Job Details
+* **Endpoint**: `GET /job/:id`
+* **Response (200 OK)**:
+```json
+{
+  "job": {
     "id": "e81d77a0-0099-4d69-8f85-0c7f3e8f8a84",
-    "state": "FAILED",
-    "executions": [
-      {
-        "worker_id": "worker-1",
-        "attempt": 1,
-        "state": "FAILED",
-        "status_code": 504,
-        "error": "HTTP Request failed with status code 504"
-      }
-    ]
+    "name": "http.request",
+    "state": "QUEUED",
+    "priority": 20,
+    ...
   }
 }
 ```
 
-#### 3. Cancel Job (Future)
-* **Endpoint**: `POST /api/v1/jobs/:id/cancel`
-* **Description**: Transitions a `PENDING` or `QUEUED` job directly to `CANCELLED` state, preventing execution.
+#### 4. Cancel Job
+* **Endpoint**: `POST /jobs/:id/cancel`
+* **Description**: Transitions a `PENDING` or `QUEUED` job directly to the `CANCELLED` state, preventing execution.
 
 ---
 
-## 🔮 Future Updates & Roadmap
+## 🔮 Roadmap & Implementation Status
 
-We are actively developing the platform roadmap to include the following production milestones:
+We are actively developing the platform across various milestones:
 
-### ⏱️ Scheduler Daemon & Cron Jobs (Milestone 4)
-- Run a singleton or lease-locked scheduler process.
-- Resolve delayed execution times and parse cron formats to automatically enqueue recurring jobs.
+### ✅ Project Setup & DB Schema (Milestone 1)
+- [x] Configure TypeScript project and Docker setup for PostgreSQL.
+- [x] Initialize Prisma with relational `Job` and `JobExecution` models.
+- [x] Create database indexing optimizations for state-based job fetching.
 
-### ⚠️ Dead Letter Queuing & Backoffs (Milestone 5)
-- Introduce exponential backoff equations ($delay \times 2^{\text{attempts}}$) to defer retries when target webhooks fail.
-- Route permanently failed jobs (exceeding `max_retries`) to a permanent `FAILED` DLQ state.
+### ✅ Database Queue Core & Lock Mechanics (Milestone 2)
+- [x] Implement row-level pessimistic locking (`SELECT FOR UPDATE SKIP LOCKED`) inside raw SQL queries to ensure atomic job fetching.
+- [x] Build transactional helper functions to complete or fail jobs.
+- [x] Support exponential and fixed backoffs.
 
-### 🛡️ REST Auth & RBAC (Milestone 6)
-- Secure API endpoints using JWT authentication.
-- Limit job enqueues and cancellation methods using Role-Based Access Control (RBAC).
+### ✅ Worker Engine & Concurrency Control (Milestone 3)
+- [x] Build multi-threaded/concurrent Worker polling loop.
+- [x] Integrate custom SSRF and DNS Rebinding protection.
+- [x] Define unified project entrypoint selecting process roles.
 
-### 📊 Monitoring & Observability (Milestone 7)
-- **Prometheus Integration**: Expose a `/metrics` Prometheus-scraping endpoint.
-- Export key operational metrics:
-  - `jobs_enqueued_total` (counter)
-  - `jobs_completed_total` (counter)
-  - `jobs_failed_total` (counter)
-  - `job_execution_duration_seconds` (histogram of processing latency)
-  - `queue_lag_seconds` (time elapsed between `run_at` and actual lock time)
-  - `active_worker_threads` (gauge monitoring worker saturation)
-- Set up Grafana dashboards to monitor throughput, error rates, and retry counts.
+### ⏳ Scheduler & Recurring Jobs (Milestone 4 - In Progress)
+- [x] Parse standard cron formats (`cron-parser`) to calculate next runtimes.
+- [x] Build a scheduler loop to automatically promote ready delayed jobs.
+- [ ] Complete full scheduler process roles integration in entrypoint.
 
-### 🏎️ Redis & BullMQ Migration (Milestone 8)
-- Abstract the database queue layer.
-- Build a high-performance alternate queue driver utilizing Redis Streams and BullMQ.
+### ⏱️ REST API Server (Milestone 6 - In Progress)
+- [x] Implement Express server with routing structure.
+- [x] Implement Zod payload validation for enqueue parameters.
+- [ ] Add JWT authentication & Role-Based Access Control (RBAC).
+
+### 📊 Monitoring & Observability (Milestone 7 - Future)
+- [ ] Prometheus metrics exposing endpoint (`/metrics`).
+- [ ] Grafana dashboard integration.
+
+### 🏎️ Redis & BullMQ Migration (Milestone 8 - Future)
+- [ ] Queue abstraction interface.
+- [ ] Alternate queue driver implementation utilizing Redis and BullMQ.
