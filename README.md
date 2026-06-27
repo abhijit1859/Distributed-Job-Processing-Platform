@@ -216,14 +216,14 @@ We are actively developing the platform across various milestones:
 - [x] Build a scheduler loop to automatically promote ready delayed jobs.
 - [ ] Complete full scheduler process roles integration in entrypoint.
 
-### ⏳ Error Handling & DLQ (Milestone 5 - In Progress)
+### ✅ Error Handling & DLQ (Milestone 5 - Completed)
 - [x] Dead Letter Queue Routing (standard non-cron jobs transition permanently to FAILED state upon exhausting max retries).
-- [ ] Exponential Backoff Jitter (introduce random variance to avoid thundering herds).
+- [x] Exponential Backoff Jitter (introduce random variance to avoid thundering herds).
 
 ### ⏱️ REST API Server (Milestone 6 - In Progress)
 - [x] Implement Express server with routing structure.
 - [x] Implement Zod payload validation for enqueue parameters.
-- [ ] Add JWT authentication & Role-Based Access Control (RBAC).
+- [x] Add JWT authentication & Role-Based Access Control (RBAC).
 
 ### 📊 Monitoring & Observability (Milestone 7 - Future)
 - [ ] Prometheus metrics exposing endpoint (`/metrics`).

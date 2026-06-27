@@ -55,8 +55,8 @@ This document tracks our implementation progress.
 
 ---
 
-## 📅 Milestone 5: Error Handling & DLQ (IN PROGRESS)
-- [ ] Update [backoff.ts](file:///home/abhijit_1859/Documents/learn-codes/distri/src/utils/backoff.ts) to add random jitter to exponential retries.
+## 📅 Milestone 5: Error Handling & DLQ (COMPLETED)
+- [x] Update [backoff.ts](file:///home/abhijit_1859/Documents/learn-codes/distri/src/utils/backoff.ts) to add random jitter to exponential retries.
 - [x] Ensure standard (non-cron) jobs transitioning to the `FAILED` state are handled as a Dead Letter Queue (DLQ).
 
 ---
