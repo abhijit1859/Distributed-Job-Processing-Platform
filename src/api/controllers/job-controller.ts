@@ -45,8 +45,8 @@ export class jobControllers {
                 return
             }
 
-            const {name,payload,...options}=parsed.data
-            const job = await queue.enqueue(userId,name,payload,options)
+            const { name, payload, ...options } = parsed.data
+            const job = await queue.enqueue(userId, name, payload, options)
 
             res.status(201).json({
                 success: true,
@@ -92,5 +92,121 @@ export class jobControllers {
 
     static async cancelJob(req: Request, res: Response): Promise<void> {
 
+    }
+
+    static async listDLQJobs(req: Request, res: Response): Promise<void> {
+        try {
+            const jobs = await prisma.job.findMany({
+                where: {
+                    state: JobState.FAILED
+                },
+                orderBy: {
+                    updatedAt: 'desc'
+                }
+            })
+            res.status(200).json({
+                success: true,
+                data: jobs
+            })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({
+                success: false,
+                message: "internal server error"
+            })
+        }
+    }
+
+
+    //replay a job
+    static async replayJob(req: Request, res: Response): Promise<void> {
+        const id = req.params.id as string;
+
+
+        try {
+            const job = await prisma.job.findUnique({
+                where: {
+                    id
+                }
+            })
+
+            if (!job) {
+                res.status(404).json({
+                    message: "Job not found"
+                })
+                return
+            }
+            if (job.state !== JobState.FAILED) {
+                res.status(400).json({
+                    message: `Job is not in DLQ and is currently in state: ${job.state}`
+                })
+                return
+            }
+
+            const updatedJob = await prisma.job.update({
+                where: {
+                    id
+                },
+                data: {
+                    state: JobState.QUEUED,
+                    retriesCount: 0,
+                    runAt: new Date(),
+                    lockedAt: null,
+                    lockedBy: null
+                }
+            })
+
+            res.status(200).json({
+                success: true,
+                message: "job re-queued",
+                data: updatedJob
+            })
+        } catch (error) {
+            console.error(error)
+            res.status(500).json({
+                success: false,
+                message: "internal server error"
+            })
+        }
+    }
+
+    static async deleteJob(req: Request, res: Response): Promise<void> {
+        const id = req.params.id as string;
+        try {
+            const job = await prisma.job.findUnique({
+                where: {
+                    id
+                }
+            })
+            if (!job) {
+                res.status(404).json({
+                    message: "No job found"
+                })
+                return
+            }
+            if (job.state !== JobState.FAILED) {
+                res.status(400).json({
+                    success: false,
+                    message: `Only FAILED jobs can be permanently deleted via DLQ cleanup`
+                });
+                return;
+            }
+            
+            await prisma.job.delete({
+                where: {
+                    id
+                }
+            })
+            res.status(200).json({
+                message: "job deleted",
+                success: true
+            })
+        } catch (error) {
+            console.log(error);
+            res.status(500).json({
+                succcess: false,
+                message: "internal server error"
+            })
+        }
     }
 }

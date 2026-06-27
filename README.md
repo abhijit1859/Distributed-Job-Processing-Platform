@@ -216,6 +216,10 @@ We are actively developing the platform across various milestones:
 - [x] Build a scheduler loop to automatically promote ready delayed jobs.
 - [ ] Complete full scheduler process roles integration in entrypoint.
 
+### ⏳ Error Handling & DLQ (Milestone 5 - In Progress)
+- [x] Dead Letter Queue Routing (standard non-cron jobs transition permanently to FAILED state upon exhausting max retries).
+- [ ] Exponential Backoff Jitter (introduce random variance to avoid thundering herds).
+
 ### ⏱️ REST API Server (Milestone 6 - In Progress)
 - [x] Implement Express server with routing structure.
 - [x] Implement Zod payload validation for enqueue parameters.

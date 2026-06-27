@@ -143,12 +143,24 @@ export class DatabaseQueue {
       if (!job) throw new Error(`Job ${jobId} not found`);
 
       const nextRetryCount = job.retriesCount + 1;
-      const canRetry = nextRetryCount <= job.maxRetries;
+      
+      const canRetry=job.retriesCount<=job.maxRetries
+      let nextState:JobState;
+      let nextRunAt:Date
+      let nextRetriesCount=nextRetryCount
 
-      const nextState = canRetry ? JobState.QUEUED : JobState.FAILED;
-      const nextRunAt = canRetry
-        ? calculateNextRun(nextRetryCount, job.backoffType, job.backoffDelay)
-        : job.runAt;
+      if(canRetry){
+        nextState=JobState.PENDING
+        nextRunAt=calculateNextRun(nextRetryCount,job.backoffType,job.backoffDelay)
+
+      }else if (job.cronExpression){
+        nextState=JobState.PENDING
+        nextRunAt=getNextCronRun(job.cronExpression)
+        nextRetriesCount=0
+      }else{
+        nextState=JobState.FAILED
+        nextRunAt=job.runAt
+      }
 
       await tx.job.update({
         where: { id: jobId },

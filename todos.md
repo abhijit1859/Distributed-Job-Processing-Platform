@@ -52,3 +52,16 @@ This document tracks our implementation progress.
 - [x] Write transactional scheduler query to grab scheduled ready jobs (runAt <= NOW) and move them to `QUEUED`.
 - [ ] Create verification script `src/scratch/test-scheduler.ts` and run it to verify delayed and cron jobs execution.
 - [ ] Integrate Scheduler startup into unified process entrypoint `src/index.ts` under role `'scheduler'`.
+
+---
+
+## 📅 Milestone 5: Error Handling & DLQ (IN PROGRESS)
+- [ ] Update [backoff.ts](file:///home/abhijit_1859/Documents/learn-codes/distri/src/utils/backoff.ts) to add random jitter to exponential retries.
+- [x] Ensure standard (non-cron) jobs transitioning to the `FAILED` state are handled as a Dead Letter Queue (DLQ).
+
+---
+
+## 📅 Milestone 6: REST API Authentication & Cancellation (IN PROGRESS)
+- [x] Secure all job endpoints in [job-routes.ts](file:///home/abhijit_1859/Documents/learn-codes/distri/src/api/routes/job-routes.ts) using JWT and Role-Based Access Control (RBAC).
+- [x] Implement signup, login, and logout endpoints in [auth-controller.ts](file:///home/abhijit_1859/Documents/learn-codes/distri/src/api/controllers/auth-controller.ts) using password hashing (`bcryptjs`) and stateless token signing (`jsonwebtoken`).
+- [ ] Write the controller logic for `cancelJob` inside [job-controller.ts](file:///home/abhijit_1859/Documents/learn-codes/distri/src/api/controllers/job-controller.ts) to transition `PENDING` or `QUEUED` jobs to the `CANCELLED` state.

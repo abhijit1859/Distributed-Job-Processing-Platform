@@ -1,6 +1,7 @@
 import { DatabaseQueue } from '../queue/database-queue';
 import { Job } from '@prisma/client';
 import { resolveAndValidateHost } from '../../utils/ssrf';
+import { activeWorkersGauge, jobDurationHistogram, jobFailureCounter, processedcounter } from '../../utils/metrices';
 
 export interface WorkerOptions {
   concurrency?: number;
@@ -41,7 +42,6 @@ export class Worker {
   }
 
   private tick(): void {
-    console.log("hello")
     if (!this.isRunning) return;
 
     this.pollAndExecute()
@@ -59,7 +59,7 @@ export class Worker {
       const job = await this.queue.fetchNextJob(this.workerId);
       if (!job) {
         console.log("no job")
-        break; // No jobs ready
+        break;
       }
 
       this.activeJobsCount++;
@@ -75,6 +75,8 @@ export class Worker {
   }
 
   private async runJob(job: Job): Promise<void> {
+    activeWorkersGauge.inc()
+    const timer = jobDurationHistogram.startTimer()
     console.log(`[Worker ${this.workerId}] Executing job ${job.id} (name: ${job.name})...`);
 
     try {
@@ -90,6 +92,7 @@ export class Worker {
       console.log(
         `[Worker ${this.workerId}] Completed ${job.id}`
       );
+      processedcounter.inc()
     } catch (error) {
       console.error(error)
       await this.queue.failJob(
@@ -98,6 +101,9 @@ export class Worker {
 
         error instanceof Error ? error.message : "Unknown error"
       );
+    } finally {
+      timer()
+      activeWorkersGauge.dec()
     }
 
 

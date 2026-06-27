@@ -2,11 +2,16 @@ import { BackoffType } from "@prisma/client";
 
 export function calculateNextRun(retriesCount:number,backoffType:BackoffType,backoffDelayMs:number):Date{
   const now=Date.now()
-  if(backoffType===BackoffType.FIXED){
-    return new Date(now+backoffDelayMs)
+  
+  let delay=backoffDelayMs
+   
+  if(backoffType===BackoffType.EXPONENTIAL){
+    const exponent=Math.max(0,retriesCount-1)
+    delay=backoffDelayMs*Math.pow(2,exponent)
   }
-  const exponent=Math.max(0,retriesCount-1)
-  const delay=backoffDelayMs*Math.pow(2,exponent)
+  const jitterRange=delay*0.15
+  const randomJitter=(Math.random()*2-1)*jitterRange
 
-  return new Date(now+delay)
+  const finalDelay=Math.max(0,delay+randomJitter)
+  return new Date(now+finalDelay)
 }
